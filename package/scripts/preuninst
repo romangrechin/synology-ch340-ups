@@ -1,0 +1,5 @@
+#!/bin/sh
+# Revert system changes while the helper still exists.
+TARGET=${SYNOPKG_PKGDEST:-/var/packages/CH340UPS/target}
+[ -x "$TARGET/bin/ch340ups-apply" ] && "$TARGET/bin/ch340ups-apply" --remove
+exit 0

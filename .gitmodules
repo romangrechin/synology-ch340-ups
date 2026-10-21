@@ -1,0 +1,3 @@
+[submodule "external/nut"]
+	path = external/nut
+	url = https://github.com/networkupstools/nut.git

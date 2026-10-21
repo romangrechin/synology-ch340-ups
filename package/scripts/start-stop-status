@@ -1,0 +1,27 @@
+#!/bin/sh
+# DSM runs this at boot, at shutdown and from Package Center.
+# "start" reapplies everything, which is how the package survives DSM updates.
+TARGET=${SYNOPKG_PKGDEST:-/var/packages/CH340UPS/target}
+HELPER="$TARGET/bin/ch340ups-apply"
+
+case "$1" in
+start)
+	[ -x "$HELPER" ] || { echo "missing $HELPER" >&2; exit 1; }
+	"$HELPER" --apply
+	exit $?
+	;;
+
+stop)
+	# No-op: the driver belongs to DSM's UPS service once installed.
+	exit 0
+	;;
+
+status)
+	[ -x /usr/bin/blazer_ser ] && exit 0
+	exit 1
+	;;
+
+*)
+	exit 0
+	;;
+esac

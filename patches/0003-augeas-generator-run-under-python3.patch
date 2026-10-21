@@ -1,0 +1,13 @@
+diff --git a/scripts/augeas/gen-nutupsconf-aug.py b/scripts/augeas/gen-nutupsconf-aug.py
+index 55db17a..0c741dc 100755
+--- a/scripts/augeas/gen-nutupsconf-aug.py
++++ b/scripts/augeas/gen-nutupsconf-aug.py
+@@ -69,7 +69,7 @@ if __name__ == '__main__':
+ 
+ 	if (len(sys.argv) == 2):
+ 		dirPrefix = sys.argv[1]
+-		print dirPrefix
++		print(dirPrefix)
+ 
+ 	# 1/ Extract all specific drivers parameters, in a sorted list with unique entries
+ 	# 1.1/ List all drivers implementation files

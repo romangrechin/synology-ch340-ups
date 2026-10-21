@@ -1,0 +1,170 @@
+diff --git a/drivers/blazer_ser.c b/drivers/blazer_ser.c
+index 7f5a7d5..ad29570 100644
+--- a/drivers/blazer_ser.c
++++ b/drivers/blazer_ser.c
+@@ -21,8 +21,13 @@
+  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+  */
+ 
++#include <errno.h>
++#include <fcntl.h>
+ #include <glob.h>
+ #include <string.h>
++#include <sys/file.h>
++#include <termios.h>
++#include <unistd.h>
+ 
+ #include "main.h"
+ #include "serial.h"
+@@ -115,6 +120,114 @@ void upsdrv_makevartable(void)
+ }
+ 
+ 
++/* Only CH340/CH341 bridges are probed, so adapters from other vendors are
++ * never written to. */
++static int is_bridge_port(const char *path)
++{
++	const char	*name = strrchr(path, '/');
++	char		sysfs[256], vid[16];
++	FILE		*fh;
++
++	name = name ? name + 1 : path;
++	snprintf(sysfs, sizeof(sysfs),
++		"/sys/class/tty/%s/device/../../idVendor", name);
++
++	fh = fopen(sysfs, "r");
++
++	if (!fh) {
++		return 0;
++	}
++
++	if (!fgets(vid, sizeof(vid), fh)) {
++		fclose(fh);
++		return 0;
++	}
++
++	fclose(fh);
++	vid[strcspn(vid, "\r\n")] = '\0';
++
++	return !strcmp(vid, "1a86") || !strcmp(vid, "4348");
++}
++
++/* CH340/CH341 carry Arduinos and plain COM adapters too, so accept a port
++ * only if it answers the Megatec status query. */
++static int is_megatec_port(const char *path)
++{
++	int		fd, ret = 0, tries;
++	struct termios	tio;
++	char		buf[64];
++
++	fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
++
++	if (fd < 0) {
++		upsdebugx(2, "%s: open failed: %s", path, strerror(errno));
++		return 0;
++	}
++
++	/* Leave the port alone if another program is holding it. */
++	if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
++		upsdebugx(2, "%s: in use, skipped", path);
++		close(fd);
++		return 0;
++	}
++
++	memset(&tio, 0, sizeof(tio));
++	tio.c_cflag = CS8 | CREAD | CLOCAL;
++	tio.c_cc[VMIN] = 0;
++	tio.c_cc[VTIME] = 0;
++	cfsetispeed(&tio, B2400);
++	cfsetospeed(&tio, B2400);
++
++	if (tcsetattr(fd, TCSANOW, &tio)) {
++		upsdebugx(2, "%s: tcsetattr failed: %s", path, strerror(errno));
++		close(fd);
++		return 0;
++	}
++
++	usleep(100000);
++
++	for (tries = 0; tries < 5 && !ret; tries++) {
++		size_t	len = 0;
++		int	waited;
++
++		buf[0] = '\0';
++		tcflush(fd, TCIOFLUSH);
++
++		if (write(fd, "Q1\r", 3) != 3) {
++			upsdebugx(2, "%s: write failed: %s", path, strerror(errno));
++			break;
++		}
++
++		/* the full Q1 reply needs about 200 ms at 2400 baud */
++		for (waited = 0; waited < 1000 && !ret; waited += 50) {
++			ssize_t	got;
++
++			usleep(50000);
++
++			got = read(fd, buf + len, sizeof(buf) - 1 - len);
++
++			if (got > 0) {
++				len += (size_t)got;
++				buf[len] = '\0';
++
++				if (buf[0] == '(' && memchr(buf, '\r', len)) {
++					ret = 1;
++				}
++			}
++
++			if (len >= sizeof(buf) - 1) {
++				break;
++			}
++		}
++
++		upsdebugx(2, "%s: attempt %d read %d byte(s): %s",
++			path, tries + 1, (int)len, buf);
++	}
++
++	close(fd);
++	return ret;
++}
++
+ void upsdrv_initups(void)
+ {
+ #ifndef TESTING
+@@ -139,22 +252,31 @@ void upsdrv_initups(void)
+ 	/*
+ 	 * Open and lock the serial port and set the speed to 2400 baud.
+ 	 */
+-	/* DSM forces "port = auto"; resolve it to the real serial port. The socket
+-	 * name comes from device_name in main.c, so it stays unaffected. */
++	/* DSM forces "port = auto"; resolve it to the port the UPS answers on. The
++	 * socket name comes from device_name in main.c, so it stays unaffected. */
+ 	if (!strcmp(device_path, "auto")) {
+ 		glob_t	gl;
+ 		char	*found = NULL;
++		size_t	n;
+ 
+ 		if (!glob("/dev/ttyUSB*", 0, NULL, &gl)) {
+-			if (gl.gl_pathc > 0) {
+-				found = xstrdup(gl.gl_pathv[0]);
++			for (n = 0; n < gl.gl_pathc && !found; n++) {
++				if (!is_bridge_port(gl.gl_pathv[n])) {
++					continue;
++				}
++
++				upsdebugx(1, "probing %s for a Megatec UPS", gl.gl_pathv[n]);
++
++				if (is_megatec_port(gl.gl_pathv[n])) {
++					found = xstrdup(gl.gl_pathv[n]);
++				}
+ 			}
+ 
+ 			globfree(&gl);
+ 		}
+ 
+ 		if (!found) {
+-			fatalx(EXIT_FAILURE, "port 'auto': no /dev/ttyUSB* device found");
++			fatalx(EXIT_FAILURE, "port 'auto': no Megatec/Q1 UPS found on /dev/ttyUSB*");
+ 		}
+ 
+ 		upslogx(LOG_INFO, "port 'auto' resolved to %s", found);
