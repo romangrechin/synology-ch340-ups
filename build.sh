@@ -35,6 +35,14 @@ done
 
 cd "$(dirname "$0")"
 
+# Version label for the file name and INFO: the tag being built, else "dev".
+if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
+	PKG_TAG=$GITHUB_REF_NAME
+else
+	PKG_TAG=$(git tag --points-at HEAD 2>/dev/null | head -1)
+	[ -n "$PKG_TAG" ] || PKG_TAG=dev
+fi
+
 case "$(uname -s)" in
 MINGW* | MSYS* | CYGWIN*)
 	# Docker needs a Windows path, and MSYS must not rewrite it
@@ -52,5 +60,6 @@ esac
 docker build -t "$IMAGE" .
 # shellcheck disable=SC2086
 docker run --rm -v "$MOUNT:/src" \
-	-e TARGET_ARCH="$ARCH" ${SPK_ARCH:+-e SPK_ARCH="$SPK_ARCH"} $OWNER \
+	-e TARGET_ARCH="$ARCH" -e PKG_TAG="$PKG_TAG" \
+	${SPK_ARCH:+-e SPK_ARCH="$SPK_ARCH"} $OWNER \
 	"$IMAGE"

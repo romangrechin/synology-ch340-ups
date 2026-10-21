@@ -9,8 +9,17 @@ ROOT=/tmp/spk_root
 PAY=/tmp/payload
 
 TARGET_ARCH=${TARGET_ARCH:-x86_64}
-VERSION=$(cat "$SRC/VERSION")
+PKG_TAG=${PKG_TAG:-dev}
 
+# INFO version comes from the tag: v7.2.1 -> 7.2.1-0001, v7.2.1-2 -> 7.2.1-2.
+case "$PKG_TAG" in
+dev)	VERSION="0.0.0-0001" ;;
+*-*)	VERSION=${PKG_TAG#v} ;;
+*)	VERSION="${PKG_TAG#v}-0001" ;;
+esac
+
+# Every Synology platform of the matching CPU family, so one .spk per arch
+# covers all models. Values from Synology's Appendix A.
 case "$TARGET_ARCH" in
 x86_64)
 	TRIPLE=""
@@ -18,11 +27,11 @@ x86_64)
 	;;
 aarch64)
 	TRIPLE="aarch64-linux-gnu"
-	DEFAULT_SPK_ARCH="rtd1296"
+	DEFAULT_SPK_ARCH="armv8 rtd1296 rtd1619 rtd1619b armada37xx"
 	;;
 armv7)
 	TRIPLE="arm-linux-gnueabihf"
-	DEFAULT_SPK_ARCH="armada38x"
+	DEFAULT_SPK_ARCH="armv7 alpine alpine4k armada370 armada375 armada38x armadaxp comcerto2k monaco"
 	;;
 *)
 	echo "unsupported TARGET_ARCH '$TARGET_ARCH' (x86_64, aarch64, armv7)" >&2
@@ -42,11 +51,8 @@ else
 	CONFIGURE_HOST=""
 fi
 
-echo "CH340 USB UPS Driver $VERSION | target $TARGET_ARCH | arch=\"$SPK_ARCH\""
-
-if [ "$SPK_ARCH" != "x86_64" ]; then
-	echo "NOTE: arch=\"$SPK_ARCH\" is a guess; override with --spk-arch if your model differs."
-fi
+echo "CH340 USB UPS Driver $PKG_TAG | INFO version $VERSION | target $TARGET_ARCH"
+echo "arch=\"$SPK_ARCH\""
 
 if [ ! -f "$SRC/external/nut/configure.ac" ]; then
 	echo "NUT submodule is empty. Run: git submodule update --init --recursive" >&2
@@ -133,7 +139,7 @@ tar --format=ustar --owner=0 --group=0 --numeric-owner \
 	-czf "$ROOT/package.tgz" -C "$PAY" blazer_ser bin
 
 # DSM requires an uncompressed ustar with INFO first and no "./" prefix.
-OUT="$SRC/build/CH340UPS-$VERSION-$SPK_ARCH.spk"
+OUT="$SRC/build/CH340UPS-$PKG_TAG-$TARGET_ARCH.spk"
 mkdir -p "$SRC/build"
 tar --format=ustar --owner=0 --group=0 --numeric-owner \
 	-cf "$OUT" -C "$ROOT" \

@@ -12,13 +12,18 @@ Set-Location $PSScriptRoot
 
 $image = 'ch340ups-builder'
 
+# Version label for the file name and INFO: the tag on HEAD, else "dev".
+$pkgTag = git tag --points-at HEAD | Select-Object -First 1
+if (-not $pkgTag) { $pkgTag = 'dev' }
+
 docker build -t $image .
 if ($LASTEXITCODE -ne 0) { throw 'docker build failed' }
 
 $dockerArgs = @(
     'run', '--rm',
     '-v', "$($PWD.Path):/src",
-    '-e', "TARGET_ARCH=$Arch"
+    '-e', "TARGET_ARCH=$Arch",
+    '-e', "PKG_TAG=$pkgTag"
 )
 if ($SpkArch) { $dockerArgs += @('-e', "SPK_ARCH=$SpkArch") }
 $dockerArgs += $image

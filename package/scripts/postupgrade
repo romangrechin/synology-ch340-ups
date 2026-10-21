@@ -1,0 +1,5 @@
+#!/bin/sh
+# Reapply with the new driver; DSM keeps the system changes across an upgrade.
+TARGET=${SYNOPKG_PKGDEST:-/var/packages/CH340UPS/target}
+[ -x "$TARGET/bin/ch340ups-apply" ] && "$TARGET/bin/ch340ups-apply" --apply
+exit 0

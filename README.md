@@ -44,28 +44,36 @@ cd synology-ch340-ups
 .\build.ps1                             # Windows PowerShell
 ```
 
-The `.spk` lands in `./build`.
+The `.spk` lands in `./build`, named after the tag on `HEAD`, for example
+`CH340UPS-v7.2.1-aarch64.spk`. Untagged builds are labelled `dev`. The `INFO`
+version follows the same tag: `v7.2.1` becomes `7.2.1-0001`.
 
 ### Arguments
 
 | Argument | Values | Default | Meaning |
 |---|---|---|---|
 | target arch | `x86_64`, `aarch64`, `armv7` | `x86_64` | toolchain to build with |
-| `--spk-arch` / `-SpkArch` | any | per target arch | value written to `arch=` in `INFO` |
+| `--spk-arch` / `-SpkArch` | any | every platform of that family | value written to `arch=` in `INFO` |
 
 ```sh
 ./build.sh aarch64
-./build.sh aarch64 --spk-arch rtd1296
+./build.sh aarch64 --spk-arch rtd1619b
 ```
 
 ```powershell
 .\build.ps1 aarch64
-.\build.ps1 aarch64 -SpkArch rtd1296
+.\build.ps1 aarch64 -SpkArch rtd1619b
 ```
 
-`--spk-arch` decides which Synology models accept the package. `x86_64` covers
-all Intel/AMD models. For ARM the default is a guess — check your model in
-Synology's *Appendix A: Platform and Arch Value Mapping Table* and override it.
+Each build already lists every Synology platform of its CPU family, so one
+`.spk` per architecture covers all models and `--spk-arch` is only needed for
+a platform Synology has added since:
+
+| Build | `arch=` |
+|---|---|
+| `x86_64` | `x86_64` |
+| `aarch64` | `armv8 rtd1296 rtd1619 rtd1619b armada37xx` |
+| `armv7` | `armv7 alpine alpine4k armada370 armada375 armada38x armadaxp comcerto2k monaco` |
 
 ## Install
 
